@@ -1,11 +1,20 @@
 {
   "expo": {
-    "name": "calorie-tracker",
+    "name": "NourishTrack",
     "slug": "calorie-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to snap photos of your meals.",
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to log meals."
+        }
+      ]
+    ],
     "ios": {
       "supportsTablet": true
     },
