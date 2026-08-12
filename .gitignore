@@ -33,8 +33,10 @@ yarn-error.*
 # local env files
 .env*.local
 
-# API keys — never commit
+# API keys — never commit.
+# Both extensions are listed so renaming the file can't quietly un-ignore it.
 config.js
+config.ts
 
 # typescript
 *.tsbuildinfo

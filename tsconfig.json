@@ -1,0 +1,13 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    // Expo's base config does not turn this on. Without it most of the
+    // value is lost — null and undefined stop being tracked, and implicit
+    // `any` slips in silently.
+    "strict": true
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  // server/ is its own package with its own tsconfig; it targets Node, not
+  // React Native, so it must not be checked with these settings.
+  "exclude": ["node_modules", "server", ".expo", "dist"]
+}

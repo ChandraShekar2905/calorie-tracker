@@ -1,11 +1,17 @@
 import { API_BASE_URL } from '../config';
+import type {
+  MealPayload,
+  MealsResponse,
+  WaterPayload,
+  WaterResponse,
+} from '../shared/contract';
 
 // If the laptop isn't reachable, fetch can hang for a long time before the
 // platform gives up. Failing fast keeps the app feeling instant — a failed
 // sync is harmless because the entry is already saved locally.
 const TIMEOUT_MS = 6000;
 
-async function request(path, options = {}) {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -16,11 +22,14 @@ async function request(path, options = {}) {
     });
     if (!response.ok) {
       throw new Error(
-        `${options.method || 'GET'} ${path} failed with status ${response.status}`
+        `${options.method ?? 'GET'} ${path} failed with status ${response.status}`
       );
     }
-    // DELETE replies 204 with no body.
-    return response.status === 204 ? null : await response.json();
+    // DELETE replies 204 with no body. The caller declares that case as
+    // Promise<void>, so there's nothing to parse.
+    return response.status === 204
+      ? (undefined as T)
+      : ((await response.json()) as T);
   } finally {
     clearTimeout(timer);
   }
@@ -28,30 +37,30 @@ async function request(path, options = {}) {
 
 // Saves a meal and its items. Safe to call twice with the same meal — the
 // server upserts on id.
-export function saveMeal(meal) {
+export function saveMeal(meal: MealPayload): Promise<{ id: string; itemCount: number }> {
   return request('/meals', { method: 'POST', body: JSON.stringify(meal) });
 }
 
 // Removes one food from a meal on the server.
-export function deleteMealItem(itemId) {
+export function deleteMealItem(itemId: string): Promise<void> {
   return request(`/meal-items/${itemId}`, { method: 'DELETE' });
 }
 
 // Saves one glass of water. Also safe to call twice with the same entry.
-export function saveWaterEntry(entry) {
+export function saveWaterEntry(entry: WaterPayload): Promise<{ id: string }> {
   return request('/water', { method: 'POST', body: JSON.stringify(entry) });
 }
 
-export function deleteWaterEntry(entryId) {
+export function deleteWaterEntry(entryId: string): Promise<void> {
   return request(`/water/${entryId}`, { method: 'DELETE' });
 }
 
 // Reads a day back out of Postgres. Not used by the logging flow — these are
 // here to confirm the data really landed in the database.
-export function fetchMeals(dateKey) {
+export function fetchMeals(dateKey: string): Promise<MealsResponse> {
   return request(`/meals?date=${dateKey}`);
 }
 
-export function fetchWater(dateKey) {
+export function fetchWater(dateKey: string): Promise<WaterResponse> {
   return request(`/water?date=${dateKey}`);
 }

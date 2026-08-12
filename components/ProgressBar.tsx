@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { colors } from '../constants';
 
 // A simple horizontal progress bar. `progress` is a number from 0 to 1.
-export default function ProgressBar({ progress }) {
+export default function ProgressBar({ progress }: { progress: number }) {
   const clamped = Math.min(Math.max(progress, 0), 1);
 
   return (

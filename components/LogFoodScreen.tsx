@@ -8,8 +8,17 @@ import {
 } from 'react-native';
 import { colors } from '../constants';
 import { takePhoto, pickPhoto } from '../utils/photoPicker';
+import type { Photo } from '../types';
 
-export default function LogFoodScreen({ onAddFood, onPhotoSelected }) {
+type LogFoodScreenProps = {
+  onAddFood: (name: string, calories: number) => void;
+  onPhotoSelected: (photo: Photo) => void;
+};
+
+export default function LogFoodScreen({
+  onAddFood,
+  onPhotoSelected,
+}: LogFoodScreenProps) {
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
 

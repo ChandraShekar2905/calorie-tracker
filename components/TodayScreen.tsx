@@ -10,8 +10,9 @@ import {
 import ProgressBar from './ProgressBar';
 import { colors, WATER_GOAL_OZ } from '../constants';
 import { takePhoto } from '../utils/photoPicker';
+import type { FoodEntry, Photo } from '../types';
 
-function formatDate(date) {
+function formatDate(date: Date) {
   return date.toLocaleDateString([], {
     weekday: 'long',
     month: 'long',
@@ -19,7 +20,7 @@ function formatDate(date) {
   });
 }
 
-function formatTime(isoString) {
+function formatTime(isoString: string) {
   return new Date(isoString).toLocaleTimeString([], {
     hour: 'numeric',
     minute: '2-digit',
@@ -28,7 +29,15 @@ function formatTime(isoString) {
 
 // Everything is saved locally the moment it's logged, so this line is only
 // ever about the Postgres copy — it never means data was lost.
-function SyncStatus({ isSyncing, unsyncedCount, onRetrySync }) {
+function SyncStatus({
+  isSyncing,
+  unsyncedCount,
+  onRetrySync,
+}: {
+  isSyncing: boolean;
+  unsyncedCount: number;
+  onRetrySync: () => void;
+}) {
   if (isSyncing) {
     return <Text style={styles.syncText}>Saving to Postgres…</Text>;
   }
@@ -44,6 +53,16 @@ function SyncStatus({ isSyncing, unsyncedCount, onRetrySync }) {
   return <Text style={styles.syncText}>Saved ✓</Text>;
 }
 
+type TodayScreenProps = {
+  foods: FoodEntry[];
+  waterTotal: number;
+  onPhotoSelected: (photo: Photo) => void;
+  onDeleteFood: (id: string) => void;
+  isSyncing: boolean;
+  unsyncedCount: number;
+  onRetrySync: () => void;
+};
+
 export default function TodayScreen({
   foods,
   waterTotal,
@@ -52,7 +71,7 @@ export default function TodayScreen({
   isSyncing,
   unsyncedCount,
   onRetrySync,
-}) {
+}: TodayScreenProps) {
   const totalCalories = foods.reduce((sum, food) => sum + food.calories, 0);
 
   async function handleSnapMeal() {
@@ -63,7 +82,7 @@ export default function TodayScreen({
   }
 
   // There's no undo for a deleted entry, so confirm first.
-  function handleDeleteFood(food) {
+  function handleDeleteFood(food: FoodEntry) {
     Alert.alert('Delete entry?', `Remove "${food.name}" from today's log.`, [
       { text: 'Cancel', style: 'cancel' },
       {

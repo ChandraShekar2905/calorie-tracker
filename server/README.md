@@ -59,10 +59,27 @@ npm install
 ## Running it
 
 ```bash
-npm start          # listens on 0.0.0.0:3000
+npm start          # compiles, then listens on 0.0.0.0:3000
 ```
 
+The server is TypeScript, so `npm start` runs `tsc` first and then the
+compiled output at `dist/server/index.js`. `npm run typecheck` checks without
+emitting.
+
+The output path has a `server/` segment because `tsconfig.json` sets
+`rootDir` to the repo root — that's what lets `shared/contract.ts` compile
+alongside the server.
+
 Override the database with `DATABASE_URL` and the port with `PORT` if needed.
+
+## The shared contract
+
+`shared/contract.ts` holds the types for everything that crosses the network,
+and **both the app and this server import it**. Change the wire format on one
+side without the other and the build fails, rather than the mismatch showing
+up as a silent 400 during a demo. These wire types are deliberately not the
+app's own types: the app keeps a flat list of food entries because that's what
+it renders, while this server stores meals and items in two tables.
 
 ## Pointing the app at it
 

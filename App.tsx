@@ -10,22 +10,28 @@ import MealAnalysis from './components/MealAnalysis';
 import { todayKey, loadDay, saveDay } from './utils/storage';
 import { syncPendingChanges } from './utils/sync';
 import { colors } from './constants';
+import type {
+  ConfirmedItem,
+  FoodEntry,
+  Photo,
+  TabId,
+  WaterEntry,
+} from './types';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('today');
-  const [foods, setFoods] = useState([]);
-  // Water is a list of amounts (e.g. [8, 16]) so a single entry can be removed.
-  const [water, setWater] = useState([]);
+  const [activeTab, setActiveTab] = useState<TabId>('today');
+  const [foods, setFoods] = useState<FoodEntry[]>([]);
+  const [water, setWater] = useState<WaterEntry[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   // When a photo is taken/picked, it lands here and the MealAnalysis
   // screen takes over until the user confirms or cancels.
-  const [pendingPhoto, setPendingPhoto] = useState(null);
+  const [pendingPhoto, setPendingPhoto] = useState<Photo | null>(null);
 
   // Ids of entries deleted locally that the server hasn't been told about
   // yet. Kept separately because once an entry is gone from `foods` there's
   // nothing left to hang the pending delete off.
-  const [pendingDeletes, setPendingDeletes] = useState([]);
-  const [pendingWaterDeletes, setPendingWaterDeletes] = useState([]);
+  const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
+  const [pendingWaterDeletes, setPendingWaterDeletes] = useState<string[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   // Bumped by the Retry button to re-run the sync effect when nothing else
   // has changed.
@@ -117,11 +123,11 @@ export default function App() {
       });
   }, [foods, water, pendingDeletes, pendingWaterDeletes, isLoaded, syncAttempt]);
 
-  function addFood(name, calories) {
+  function addFood(name: string, calories: number) {
     // A typed food is a meal of one item, so it gets a mealId too and the
     // sync layer doesn't need a special case for it.
     const mealId = `meal-${Date.now()}`;
-    const entry = {
+    const entry: FoodEntry = {
       id: `${mealId}-0`,
       mealId,
       name,
@@ -144,11 +150,11 @@ export default function App() {
   // the file to the app's CACHE directory, which the OS may purge. If it
   // does, old thumbnails go blank. Fix if needed: copy the file to the
   // documents directory with expo-file-system before saving the entry.
-  function confirmMeal(mealItems, photoUri) {
+  function confirmMeal(mealItems: ConfirmedItem[], photoUri: string) {
     const mealId = `meal-${Date.now()}`;
     const time = new Date().toISOString();
     const localDate = todayKey();
-    const entries = mealItems.map((item, index) => ({
+    const entries: FoodEntry[] = mealItems.map((item, index) => ({
       id: `${mealId}-${index}`,
       mealId,
       name: item.name,
@@ -166,7 +172,7 @@ export default function App() {
     setActiveTab('today');
   }
 
-  function deleteFood(id) {
+  function deleteFood(id: string) {
     const deleted = foods.find((food) => food.id === id);
     setFoods(foods.filter((food) => food.id !== id));
     // An entry the server never received doesn't need a delete request.
@@ -175,8 +181,8 @@ export default function App() {
     }
   }
 
-  function addWater(amountOz) {
-    const entry = {
+  function addWater(amountOz: number) {
+    const entry: WaterEntry = {
       // The counter keeps two quick taps in the same millisecond from
       // producing the same id, which would silently overwrite one of them
       // in Postgres.
@@ -189,7 +195,7 @@ export default function App() {
     setWater([...water, entry]);
   }
 
-  function deleteWater(id) {
+  function deleteWater(id: string) {
     const deleted = water.find((entry) => entry.id === id);
     setWater(water.filter((entry) => entry.id !== id));
     if (deleted && deleted.synced) {

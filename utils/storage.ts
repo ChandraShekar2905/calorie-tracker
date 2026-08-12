@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { DayData, FoodEntry, WaterEntry } from '../types';
 
 // All of a day's data lives under one key, e.g. "nourishtrack:2026-08-04".
 // A new date means a new key, so each day starts fresh while history stays saved.
 const KEY_PREFIX = 'nourishtrack:';
 
 // Today's date as YYYY-MM-DD in the device's local timezone.
-export function todayKey() {
+export function todayKey(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -15,7 +16,7 @@ export function todayKey() {
 
 // A function, not a shared constant, so no two callers can ever end up
 // holding the same arrays.
-function emptyDay() {
+function emptyDay(): DayData {
   return { foods: [], water: [], pendingDeletes: [], pendingWaterDeletes: [] };
 }
 
@@ -25,13 +26,13 @@ function emptyDay() {
 // they get midday local — far enough from midnight that no timezone shift
 // can drag them into the wrong day. They're marked unsynced, which means an
 // old day opened after this change will back-fill itself into the database.
-function normalizeWater(saved, dateKey) {
+function normalizeWater(saved: unknown, dateKey: string): WaterEntry[] {
   if (!Array.isArray(saved)) {
     return [];
   }
   return saved.map((entry, index) => {
     if (typeof entry !== 'number') {
-      return entry;
+      return entry as WaterEntry;
     }
     return {
       id: `water-legacy-${dateKey}-${index}`,
@@ -43,25 +44,29 @@ function normalizeWater(saved, dateKey) {
   });
 }
 
+// Anything read back from storage was written by an older version of this
+// app, so it's `unknown` until checked. These helpers keep a corrupt or
+// outdated record from taking the whole screen down.
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
 // Loads one day's data. Returns an empty day if nothing is saved
 // or if anything goes wrong reading/parsing.
-export async function loadDay(dateKey) {
+export async function loadDay(dateKey: string): Promise<DayData> {
   try {
     const raw = await AsyncStorage.getItem(KEY_PREFIX + dateKey);
     if (raw === null) {
       return emptyDay();
     }
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
+    const record = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
     return {
-      foods: Array.isArray(parsed.foods) ? parsed.foods : [],
-      water: normalizeWater(parsed.water, dateKey),
+      foods: asArray<FoodEntry>(record.foods),
+      water: normalizeWater(record.water, dateKey),
       // Days saved before the Postgres sync existed have no delete queues.
-      pendingDeletes: Array.isArray(parsed.pendingDeletes)
-        ? parsed.pendingDeletes
-        : [],
-      pendingWaterDeletes: Array.isArray(parsed.pendingWaterDeletes)
-        ? parsed.pendingWaterDeletes
-        : [],
+      pendingDeletes: asArray<string>(record.pendingDeletes),
+      pendingWaterDeletes: asArray<string>(record.pendingWaterDeletes),
     };
   } catch (error) {
     console.warn('NourishTrack: failed to load day', error);
@@ -70,7 +75,7 @@ export async function loadDay(dateKey) {
 }
 
 // Saves one day's data as a JSON string.
-export async function saveDay(dateKey, data) {
+export async function saveDay(dateKey: string, data: DayData): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY_PREFIX + dateKey, JSON.stringify(data));
   } catch (error) {

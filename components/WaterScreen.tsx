@@ -9,15 +9,23 @@ import {
 } from 'react-native';
 import ProgressBar from './ProgressBar';
 import { colors, WATER_GOAL_OZ } from '../constants';
+import type { WaterEntry } from '../types';
 
 const QUICK_ADD_AMOUNTS = [8, 16, 24];
+
+type WaterScreenProps = {
+  water: WaterEntry[];
+  waterTotal: number;
+  onAddWater: (amountOz: number) => void;
+  onDeleteWater: (id: string) => void;
+};
 
 export default function WaterScreen({
   water,
   waterTotal,
   onAddWater,
   onDeleteWater,
-}) {
+}: WaterScreenProps) {
   // Kept as text while typing so the field can be cleared and retyped;
   // converted to a number only when the entry is added.
   const [customAmount, setCustomAmount] = useState('');

@@ -9,14 +9,35 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { analyzeMealPhoto } from '../utils/analyzeMeal';
+import { analyzeMealPhoto, MealAnalysisError } from '../utils/analyzeMeal';
 import { colors, confidenceColors } from '../constants';
+import type { AnalyzedItem, ConfirmedItem, Photo } from '../types';
+
+// An analyzed item plus the bits only this screen needs: a stable key for the
+// list, and the calories held as text so the input can be cleared and retyped
+// freely. Converted back to numbers on Confirm.
+type EditableItem = AnalyzedItem & {
+  key: string;
+  caloriesText: string;
+};
+
+type Status = 'loading' | 'results' | 'error';
+
+type MealAnalysisProps = {
+  photo: Photo;
+  onConfirm: (items: ConfirmedItem[], photoUri: string) => void;
+  onCancel: () => void;
+};
 
 // Shown after a photo is taken/picked. Handles the whole analyze flow:
 // loading → results (editable) or error (retryable), then Confirm/Cancel.
-export default function MealAnalysis({ photo, onConfirm, onCancel }) {
-  const [status, setStatus] = useState('loading'); // 'loading' | 'results' | 'error'
-  const [items, setItems] = useState([]);
+export default function MealAnalysis({
+  photo,
+  onConfirm,
+  onCancel,
+}: MealAnalysisProps) {
+  const [status, setStatus] = useState<Status>('loading');
+  const [items, setItems] = useState<EditableItem[]>([]);
   // Seconds until Retry is allowed again after a rate-limit (429) error.
   const [retryWait, setRetryWait] = useState(0);
 
@@ -24,8 +45,6 @@ export default function MealAnalysis({ photo, onConfirm, onCancel }) {
     setStatus('loading');
     try {
       const result = await analyzeMealPhoto(photo.base64, photo.mimeType);
-      // Calories are kept as text while editing so the input can be
-      // cleared and retyped freely; converted back to numbers on Confirm.
       setItems(
         result.items.map((item, index) => ({
           ...item,
@@ -36,7 +55,10 @@ export default function MealAnalysis({ photo, onConfirm, onCancel }) {
       setStatus('results');
     } catch (error) {
       console.warn('NourishTrack: meal analysis failed', error);
-      if (error.isRateLimit) {
+      // A caught value is `unknown`, so this has to be narrowed before the
+      // rate-limit fields can be read — which also stops an unrelated
+      // failure from being mistaken for a rate limit.
+      if (error instanceof MealAnalysisError && error.isRateLimit) {
         setRetryWait(error.retryAfterSeconds);
       }
       setStatus('error');
@@ -57,7 +79,7 @@ export default function MealAnalysis({ photo, onConfirm, onCancel }) {
     return () => clearTimeout(timer);
   }, [retryWait]);
 
-  function updateCalories(key, text) {
+  function updateCalories(key: string, text: string) {
     setItems(
       items.map((item) =>
         item.key === key ? { ...item, caloriesText: text } : item
@@ -65,14 +87,14 @@ export default function MealAnalysis({ photo, onConfirm, onCancel }) {
     );
   }
 
-  function removeItem(key) {
+  function removeItem(key: string) {
     setItems(items.filter((item) => item.key !== key));
   }
 
   function handleConfirm() {
     // Portion and confidence ride along so they can be stored in Postgres —
     // they're what makes a logged meal auditable after the fact.
-    const confirmed = items.map((item) => ({
+    const confirmed: ConfirmedItem[] = items.map((item) => ({
       name: item.name,
       portion: item.portion,
       confidence: item.confidence,

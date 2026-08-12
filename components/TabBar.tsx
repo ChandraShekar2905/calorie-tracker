@@ -1,13 +1,19 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../constants';
+import type { TabId } from '../types';
 
-const TABS = [
+const TABS: { id: TabId; label: string }[] = [
   { id: 'today', label: 'Today' },
   { id: 'log', label: 'Log Food' },
   { id: 'water', label: 'Water' },
 ];
 
-export default function TabBar({ activeTab, onSelectTab }) {
+type TabBarProps = {
+  activeTab: TabId;
+  onSelectTab: (tab: TabId) => void;
+};
+
+export default function TabBar({ activeTab, onSelectTab }: TabBarProps) {
   return (
     <View style={styles.bar}>
       {TABS.map((tab) => {

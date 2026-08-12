@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    // rootDir reaches up to the repo root so shared/contract.ts can be
+    // compiled alongside the server. That puts the output at
+    // dist/server/index.js, which is what the start script runs.
+    "rootDir": "..",
+    "outDir": "dist"
+  },
+  "include": ["index.ts", "../shared/**/*.ts"]
+}

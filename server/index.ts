@@ -1,6 +1,12 @@
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import pg from 'pg';
+import type {
+  Confidence,
+  MealItemPayload,
+  MealPayload,
+  MealSource,
+} from '../shared/contract.js';
 
 // The phone talks to this server over the local network; the server is the
 // only thing that ever opens a Postgres connection. React Native can't do
@@ -17,49 +23,76 @@ app.use(cors());
 // is plenty.
 app.use(express.json());
 
-const VALID_SOURCES = ['photo', 'manual'];
-const VALID_CONFIDENCE = ['high', 'medium', 'low'];
+const VALID_SOURCES: MealSource[] = ['photo', 'manual'];
+const VALID_CONFIDENCE: Confidence[] = ['high', 'medium', 'low'];
 
-// Pulls a meal out of the request body, returning either { meal } or
-// { error } so the route stays flat and readable.
-function readMeal(body) {
-  if (!body || typeof body.id !== 'string' || body.id === '') {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isSource(value: unknown): value is MealSource {
+  return VALID_SOURCES.includes(value as MealSource);
+}
+
+function isConfidence(value: unknown): value is Confidence {
+  return VALID_CONFIDENCE.includes(value as Confidence);
+}
+
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
+
+function isLocalDate(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+// The request body arrives as `unknown`. This narrows it into a MealPayload —
+// the same type the app builds — or explains why it couldn't. The payload
+// type is imported from shared/contract.ts, so if the app changes the wire
+// format without changing this, the build breaks here.
+type ReadResult =
+  | { meal: MealPayload; error?: undefined }
+  | { meal?: undefined; error: string };
+
+function readMeal(body: unknown): ReadResult {
+  if (!isRecord(body) || typeof body.id !== 'string' || body.id === '') {
     return { error: 'id is required' };
   }
-  if (!VALID_SOURCES.includes(body.source)) {
+  if (!isSource(body.source)) {
     return { error: `source must be one of ${VALID_SOURCES.join(', ')}` };
   }
-  if (typeof body.loggedAt !== 'string' || Number.isNaN(Date.parse(body.loggedAt))) {
+  if (!isIsoTimestamp(body.loggedAt)) {
     return { error: 'loggedAt must be an ISO timestamp' };
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(body.localDate || '')) {
+  if (!isLocalDate(body.localDate)) {
     return { error: 'localDate must be YYYY-MM-DD' };
   }
   if (!Array.isArray(body.items) || body.items.length === 0) {
     return { error: 'items must be a non-empty array' };
   }
 
-  const items = [];
-  for (const [index, item] of body.items.entries()) {
-    if (typeof item.id !== 'string' || item.id === '') {
+  const items: MealItemPayload[] = [];
+  for (const [index, raw] of body.items.entries()) {
+    if (!isRecord(raw)) {
+      return { error: `items[${index}] must be an object` };
+    }
+    if (typeof raw.id !== 'string' || raw.id === '') {
       return { error: `items[${index}].id is required` };
     }
-    if (typeof item.name !== 'string' || item.name.trim() === '') {
+    if (typeof raw.name !== 'string' || raw.name.trim() === '') {
       return { error: `items[${index}].name is required` };
     }
-    const calories = Number(item.calories);
+    const calories = Number(raw.calories);
     if (!Number.isFinite(calories) || calories < 0) {
       return { error: `items[${index}].calories must be a number >= 0` };
     }
     items.push({
-      id: item.id,
-      name: item.name.trim(),
-      portion: item.portion || null,
+      id: raw.id,
+      name: raw.name.trim(),
+      portion: typeof raw.portion === 'string' && raw.portion !== '' ? raw.portion : null,
       calories: Math.round(calories),
-      confidence: VALID_CONFIDENCE.includes(item.confidence)
-        ? item.confidence
-        : null,
-      position: Number.isInteger(item.position) ? item.position : index,
+      confidence: isConfidence(raw.confidence) ? raw.confidence : null,
+      position: Number.isInteger(raw.position) ? (raw.position as number) : index,
     });
   }
 
@@ -69,30 +102,37 @@ function readMeal(body) {
       loggedAt: body.loggedAt,
       localDate: body.localDate,
       source: body.source,
-      photoUri: body.photoUri || null,
+      photoUri: typeof body.photoUri === 'string' ? body.photoUri : null,
       items,
     },
   };
 }
 
 // Lets the phone check the server is reachable before blaming the network.
-app.get('/health', async (request, response) => {
+app.get('/health', async (request: Request, response: Response) => {
   try {
     await pool.query('SELECT 1');
     response.json({ ok: true });
   } catch (error) {
-    console.error('Health check failed:', error.message);
+    console.error('Health check failed:', toMessage(error));
     response.status(503).json({ ok: false, error: 'database unreachable' });
   }
 });
 
+// A caught value is `unknown`, so it has to be narrowed before its message
+// can be logged.
+function toMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 // Saves a meal and its items. Written as an upsert so that a phone retrying
 // after a timeout re-sends the same ids and updates the row instead of
 // creating a duplicate.
-app.post('/meals', async (request, response) => {
+app.post('/meals', async (request: Request, response: Response) => {
   const { meal, error: validationError } = readMeal(request.body);
-  if (validationError) {
-    return response.status(400).json({ error: validationError });
+  if (validationError !== undefined) {
+    response.status(400).json({ error: validationError });
+    return;
   }
 
   const client = await pool.connect();
@@ -135,7 +175,7 @@ app.post('/meals', async (request, response) => {
     response.status(201).json({ id: meal.id, itemCount: meal.items.length });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Failed to save meal:', error.message);
+    console.error('Failed to save meal:', toMessage(error));
     response.status(500).json({ error: 'could not save meal' });
   } finally {
     client.release();
@@ -145,27 +185,28 @@ app.post('/meals', async (request, response) => {
 // Deletes one food from a meal, and the meal too if that was its last item.
 // Deleting something already gone counts as success — the phone may retry a
 // delete whose first attempt actually landed.
-app.delete('/meal-items/:id', async (request, response) => {
+app.delete('/meal-items/:id', async (request: Request, response: Response) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query(
+    const { rows } = await client.query<{ meal_id: string }>(
       'DELETE FROM meal_items WHERE id = $1 RETURNING meal_id',
       [request.params.id]
     );
-    if (rows.length > 0) {
+    const first = rows[0];
+    if (first) {
       await client.query(
         `DELETE FROM meals
          WHERE id = $1
            AND NOT EXISTS (SELECT 1 FROM meal_items WHERE meal_id = $1)`,
-        [rows[0].meal_id]
+        [first.meal_id]
       );
     }
     await client.query('COMMIT');
     response.status(204).end();
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Failed to delete item:', error.message);
+    console.error('Failed to delete item:', toMessage(error));
     response.status(500).json({ error: 'could not delete item' });
   } finally {
     client.release();
@@ -174,20 +215,24 @@ app.delete('/meal-items/:id', async (request, response) => {
 
 // Saves one glass of water. Upsert for the same reason meals are: the phone
 // may retry a request whose first attempt actually landed.
-app.post('/water', async (request, response) => {
-  const body = request.body || {};
+app.post('/water', async (request: Request, response: Response) => {
+  const body: unknown = request.body;
+  if (!isRecord(body) || typeof body.id !== 'string' || body.id === '') {
+    response.status(400).json({ error: 'id is required' });
+    return;
+  }
   const amountOz = Number(body.amountOz);
-  if (typeof body.id !== 'string' || body.id === '') {
-    return response.status(400).json({ error: 'id is required' });
-  }
   if (!Number.isFinite(amountOz) || amountOz <= 0) {
-    return response.status(400).json({ error: 'amountOz must be a number > 0' });
+    response.status(400).json({ error: 'amountOz must be a number > 0' });
+    return;
   }
-  if (typeof body.loggedAt !== 'string' || Number.isNaN(Date.parse(body.loggedAt))) {
-    return response.status(400).json({ error: 'loggedAt must be an ISO timestamp' });
+  if (!isIsoTimestamp(body.loggedAt)) {
+    response.status(400).json({ error: 'loggedAt must be an ISO timestamp' });
+    return;
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(body.localDate || '')) {
-    return response.status(400).json({ error: 'localDate must be YYYY-MM-DD' });
+  if (!isLocalDate(body.localDate)) {
+    response.status(400).json({ error: 'localDate must be YYYY-MM-DD' });
+    return;
   }
 
   try {
@@ -202,33 +247,38 @@ app.post('/water', async (request, response) => {
     );
     response.status(201).json({ id: body.id });
   } catch (error) {
-    console.error('Failed to save water:', error.message);
+    console.error('Failed to save water:', toMessage(error));
     response.status(500).json({ error: 'could not save water entry' });
   }
 });
 
 // Deleting something already gone counts as success, same as meal items.
-app.delete('/water/:id', async (request, response) => {
+app.delete('/water/:id', async (request: Request, response: Response) => {
   try {
     await pool.query('DELETE FROM water_entries WHERE id = $1', [
       request.params.id,
     ]);
     response.status(204).end();
   } catch (error) {
-    console.error('Failed to delete water entry:', error.message);
+    console.error('Failed to delete water entry:', toMessage(error));
     response.status(500).json({ error: 'could not delete water entry' });
   }
 });
 
 // Reads one day's water back, with the day's total worked out in SQL.
-app.get('/water', async (request, response) => {
+app.get('/water', async (request: Request, response: Response) => {
   const date = request.query.date;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
-    return response.status(400).json({ error: 'date must be YYYY-MM-DD' });
+  if (!isLocalDate(date)) {
+    response.status(400).json({ error: 'date must be YYYY-MM-DD' });
+    return;
   }
 
   try {
-    const { rows } = await pool.query(
+    const { rows } = await pool.query<{
+      id: string;
+      logged_at: Date;
+      amount_oz: number;
+    }>(
       `SELECT id, logged_at, amount_oz
          FROM water_entries
         WHERE local_date = $1
@@ -238,17 +288,18 @@ app.get('/water', async (request, response) => {
     const totalOz = rows.reduce((sum, row) => sum + row.amount_oz, 0);
     response.json({ entries: rows, totalOz });
   } catch (error) {
-    console.error('Failed to read water:', error.message);
+    console.error('Failed to read water:', toMessage(error));
     response.status(500).json({ error: 'could not read water' });
   }
 });
 
 // Reads back one day's meals, newest first, each with its items. Not needed
 // to log food — it's how you prove the data really is in Postgres.
-app.get('/meals', async (request, response) => {
+app.get('/meals', async (request: Request, response: Response) => {
   const date = request.query.date;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
-    return response.status(400).json({ error: 'date must be YYYY-MM-DD' });
+  if (!isLocalDate(date)) {
+    response.status(400).json({ error: 'date must be YYYY-MM-DD' });
+    return;
   }
 
   try {
@@ -282,7 +333,7 @@ app.get('/meals', async (request, response) => {
     );
     response.json({ meals: rows });
   } catch (error) {
-    console.error('Failed to read meals:', error.message);
+    console.error('Failed to read meals:', toMessage(error));
     response.status(500).json({ error: 'could not read meals' });
   }
 });

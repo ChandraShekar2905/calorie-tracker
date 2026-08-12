@@ -5,12 +5,21 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "schema": "psql \"$DATABASE_URL\" -f schema.sql"
+    "start": "tsc && node dist/server/index.js",
+    "schema": "psql \"$DATABASE_URL\" -f schema.sql",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/node": "^26.2.0",
+    "@types/pg": "^8.21.0",
+    "typescript": "~5.9.2"
   }
 }
