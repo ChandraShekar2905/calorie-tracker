@@ -33,6 +33,13 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Demo recordings — hosted externally and linked from the README.
+# A video committed even once stays in git history forever; it can't be
+# diffed or compressed, and every future clone pays for it.
+*.mov
+*.mp4
+*.webm
+
 # API keys — never commit.
 # Both extensions are listed so renaming the file can't quietly un-ignore it.
 config.js
