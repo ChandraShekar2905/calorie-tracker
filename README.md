@@ -6,6 +6,10 @@ correct anything before it's logged.
 
 Built with Expo (SDK 54) and TypeScript, backed by Postgres.
 
+## Demo
+
+**[Watch the walkthrough (1:47)](https://drive.google.com/file/d/14-9aDVfTiiIGZF_RSacPHnKG9Ve7-k3E/view?usp=drive_link)** — the app running on a phone.
+
 ## What it does
 
 - **Photo meal logging** — take or pick a photo, and a vision model returns
