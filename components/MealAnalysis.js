@@ -70,8 +70,12 @@ export default function MealAnalysis({ photo, onConfirm, onCancel }) {
   }
 
   function handleConfirm() {
+    // Portion and confidence ride along so they can be stored in Postgres —
+    // they're what makes a logged meal auditable after the fact.
     const confirmed = items.map((item) => ({
       name: item.name,
+      portion: item.portion,
+      confidence: item.confidence,
       calories: Number(item.caloriesText) || 0,
     }));
     onConfirm(confirmed, photo.uri);

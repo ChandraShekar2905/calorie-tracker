@@ -1,4 +1,12 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import ProgressBar from './ProgressBar';
 import { colors, WATER_GOAL_OZ } from '../constants';
 import { takePhoto } from '../utils/photoPicker';
@@ -18,7 +26,33 @@ function formatTime(isoString) {
   });
 }
 
-export default function TodayScreen({ foods, waterTotal, onPhotoSelected }) {
+// Everything is saved locally the moment it's logged, so this line is only
+// ever about the Postgres copy — it never means data was lost.
+function SyncStatus({ isSyncing, unsyncedCount, onRetrySync }) {
+  if (isSyncing) {
+    return <Text style={styles.syncText}>Saving to Postgres…</Text>;
+  }
+  if (unsyncedCount > 0) {
+    return (
+      <Pressable onPress={onRetrySync}>
+        <Text style={styles.syncPending}>
+          {unsyncedCount} not saved · Retry
+        </Text>
+      </Pressable>
+    );
+  }
+  return <Text style={styles.syncText}>Saved ✓</Text>;
+}
+
+export default function TodayScreen({
+  foods,
+  waterTotal,
+  onPhotoSelected,
+  onDeleteFood,
+  isSyncing,
+  unsyncedCount,
+  onRetrySync,
+}) {
   const totalCalories = foods.reduce((sum, food) => sum + food.calories, 0);
 
   async function handleSnapMeal() {
@@ -26,6 +60,18 @@ export default function TodayScreen({ foods, waterTotal, onPhotoSelected }) {
     if (photo) {
       onPhotoSelected(photo);
     }
+  }
+
+  // There's no undo for a deleted entry, so confirm first.
+  function handleDeleteFood(food) {
+    Alert.alert('Delete entry?', `Remove "${food.name}" from today's log.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => onDeleteFood(food.id),
+      },
+    ]);
   }
 
   return (
@@ -50,7 +96,16 @@ export default function TodayScreen({ foods, waterTotal, onPhotoSelected }) {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Logged today</Text>
+        <View style={styles.loggedHeader}>
+          <Text style={styles.cardLabel}>Logged today</Text>
+          {(foods.length > 0 || unsyncedCount > 0) && (
+            <SyncStatus
+              isSyncing={isSyncing}
+              unsyncedCount={unsyncedCount}
+              onRetrySync={onRetrySync}
+            />
+          )}
+        </View>
         {foods.length === 0 ? (
           <Text style={styles.emptyText}>
             Nothing logged yet — head to Log Food to add your first meal.
@@ -66,6 +121,12 @@ export default function TodayScreen({ foods, waterTotal, onPhotoSelected }) {
                 <Text style={styles.foodTime}>{formatTime(food.time)}</Text>
               </View>
               <Text style={styles.foodCalories}>{food.calories} cal</Text>
+              <Pressable
+                style={styles.deleteButton}
+                onPress={() => handleDeleteFood(food)}
+              >
+                <Text style={styles.deleteButtonText}>✕</Text>
+              </Pressable>
             </View>
           ))
         )}
@@ -163,5 +224,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.accent,
+  },
+  loggedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  syncText: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  syncPending: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.accent,
+  },
+  deleteButton: {
+    paddingVertical: 6,
+    paddingLeft: 12,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    color: colors.textMuted,
   },
 });

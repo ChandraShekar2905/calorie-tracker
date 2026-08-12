@@ -10,3 +10,10 @@ export const GEMINI_API_KEY = 'PASTE_YOUR_GEMINI_API_KEY_HERE';
 // Note: "gemini-2.5-flash" is retired for newly created API keys
 // (returns 404 "no longer available to new users") — verified 2026-08-04.
 export const GEMINI_MODEL = 'gemini-3.6-flash';
+
+// Where the NourishTrack API server (server/) is running. The phone can't
+// use "localhost" — that would mean the phone itself — so this has to be
+// the laptop's address on the same wifi network. Find it with:
+//   ipconfig getifaddr en0
+// It changes when you join a different network, so re-check it before a demo.
+export const API_BASE_URL = 'http://YOUR_LAPTOP_IP:3000';
