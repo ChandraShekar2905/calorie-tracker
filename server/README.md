@@ -42,7 +42,7 @@ success, so the phone can retry any of them safely after a timeout.
 
 Water used to be stored on the phone as bare numbers (`[8, 16]`) with no ids
 or timestamps. Entries now need both so they can be written to and deleted
-from Postgres, so `utils/storage.js` converts old days as it reads them. Their
+from Postgres, so `utils/storage.ts` converts old days as it reads them. Their
 original times are gone, so they're given midday local — far enough from
 midnight that no timezone shift can move them to the wrong day. Converted
 entries are marked unsynced, so opening an old day back-fills it into the
@@ -90,7 +90,7 @@ laptop's address on the current wifi:
 ipconfig getifaddr en0
 ```
 
-and set `API_BASE_URL` in the project's `config.js` to `http://THAT_IP:3000`.
+and set `API_BASE_URL` in the project's `config.ts` to `http://THAT_IP:3000`.
 **This changes when you join a different network**, so re-check it before a
 demo, and confirm with:
 
@@ -107,4 +107,4 @@ catches up once the server is reachable again. Usual causes:
 - laptop and phone on different networks (or phone on cellular)
 - guest wifi blocking device-to-device traffic
 - laptop firewall prompting for incoming connections
-- stale IP in `config.js` after switching networks
+- stale IP in `config.ts` after switching networks
